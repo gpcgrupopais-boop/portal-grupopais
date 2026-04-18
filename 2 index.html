@@ -1,0 +1,92 @@
+const express = require("express");
+const sqlite3 = require("sqlite3").verbose();
+const bodyParser = require("body-parser");
+const PDFDocument = require("pdfkit");
+
+const app = express();
+app.use(bodyParser.json());
+app.use(require("cors")());
+
+const db = new sqlite3.Database("./banco.db");
+
+// CRIAR TABELAS
+db.serialize(() => {
+db.run(`CREATE TABLE IF NOT EXISTS clientes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT,
+    login TEXT,
+    senha TEXT,
+    tipo TEXT
+  )`);
+
+db.run(`CREATE TABLE IF NOT EXISTS produtos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT,
+    preco REAL,
+    estoque INTEGER
+  )`);
+
+db.run(`CREATE TABLE IF NOT EXISTS pedidos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER,
+    total REAL,
+    data TEXT
+  )`);
+});
+
+// LOGIN
+app.post("/login", (req,res)=>{
+const {login, senha} = req.body;
+
+db.get("SELECT * FROM clientes WHERE login=? AND senha=?",
+[login, senha], (err,row)=>{
+if(row) res.json(row);
+else res.status(401).send("Erro login");
+});
+});
+
+// LISTAR PRODUTOS
+app.get("/produtos",(req,res)=>{
+db.all("SELECT * FROM produtos",(err,rows)=>{
+res.json(rows);
+});
+});
+
+// CRIAR PEDIDO
+app.post("/pedido",(req,res)=>{
+const {cliente_id, itens} = req.body;
+
+let total = 0;
+
+itens.forEach(i=>{
+total += i.qtd * i.preco;
+
+```
+// BAIXA ESTOQUE
+db.run("UPDATE produtos SET estoque = estoque - ? WHERE id=?",
+[i.qtd, i.id]);
+```
+
+});
+
+db.run("INSERT INTO pedidos(cliente_id,total,data) VALUES(?,?,datetime('now'))",
+[cliente_id,total]);
+
+res.json({ok:true,total});
+});
+
+// GERAR PDF
+app.get("/pedido/pdf/:id",(req,res)=>{
+
+const doc = new PDFDocument();
+
+res.setHeader("Content-Type","application/pdf");
+doc.pipe(res);
+
+doc.fontSize(18).text("Pedido Distribuidora");
+doc.text("Pedido ID: " + req.params.id);
+
+doc.end();
+});
+
+app.listen(3000, ()=> console.log("Rodando na porta 3000"));
